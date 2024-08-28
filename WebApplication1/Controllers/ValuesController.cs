@@ -36,9 +36,26 @@ namespace WebApplication1.Controllers
                     }
                 }
             }
-
             return table;
         }
+        private int ExecuteNonQuery(string query, SqlParameter[] parameters = null)
+        {
+            int rowsAffected = 0;
+            using (SqlConnection mycon = new SqlConnection(_sqlDatasource))
+            {
+                mycon.Open();
+                using (SqlCommand myCommand = new SqlCommand(query, mycon))
+                {
+                    if (parameters != null)
+                    {
+                        myCommand.Parameters.AddRange(parameters);
+                    }
+                    rowsAffected = myCommand.ExecuteNonQuery();
+                }
+            }
+            return rowsAffected;
+        }
+
 
         [HttpGet("Get_data")]
         public JsonResult Get_data()
@@ -71,24 +88,45 @@ namespace WebApplication1.Controllers
                 new SqlParameter("@D", Address),
                 new SqlParameter("@A", Age)
             };
-            ExecuteQuery(query, parameters);
+            ExecuteNonQuery(query, parameters);
             return new JsonResult("Inserted Successfully");
         }
 
         [HttpDelete("delete_data")]
-        public IActionResult Delete_data( string id)
+        public IActionResult Delete_data(string id)
         {
-            string query = "DELETE FROM table_1 WHERE PersonID=@id";
-            SqlParameter[] parameters = {
-                new SqlParameter("@id", id)
-            };
-            DataTable table = ExecuteQuery("SELECT * FROM table_1 WHERE PersonID=@id", parameters);
+            // First, create new parameters for the SELECT query
+            SqlParameter[] selectParameters = {
+        new SqlParameter("@id", id)
+    };
+
+            // Check if the ID exists
+            string selectQuery = "SELECT * FROM table_1 WHERE PersonID=@id";
+            DataTable table = ExecuteQuery(selectQuery, selectParameters);
             if (table.Rows.Count == 0)
             {
                 return NotFound("ID not found");
             }
-            ExecuteQuery(query, parameters);
-            return Ok("Deleted Successfully");
-        }   
+
+            // Create new parameters for the DELETE query
+            SqlParameter[] deleteParameters = {
+        new SqlParameter("@id", id)
+    };
+
+            // Perform the delete operation
+            string deleteQuery = "DELETE FROM table_1 WHERE PersonID=@id";
+            int rowsAffected = ExecuteNonQuery(deleteQuery, deleteParameters);
+
+            // Check if the delete operation was successful
+            if (rowsAffected > 0)
+            {
+                return Ok("Deleted Successfully");
+            }
+            else
+            {
+                return StatusCode(500, "An error occurred while deleting the record.");
+            }
+        }
+
     }
 }
